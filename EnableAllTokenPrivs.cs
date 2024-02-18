@@ -64,7 +64,7 @@ namespace EnableAllTokenPrivs
                             break;
                     }
                 }
-            } catch (System.IndexOutOfRangeException) {
+            } catch (IndexOutOfRangeException) {
                 Console.Error.Write("[-] Invalid arguments. Use --help for additional help.");
             } catch (Exception ex) {
                 Console.Error.Write($"[-] {ex.Message}");
@@ -87,27 +87,16 @@ namespace EnableAllTokenPrivs
                 AccessToken.PrintTokenPrivileges(TokenPrivileges);
                 return;
             }
-            if (privilege != "" && disable == false)
+            if (privilege.Length > 0)
             {
-                AccessToken.EnablePrivilege(hToken, privilege);
+                AccessToken.SetTokenPrivilege(hToken, disable, privilege);
                 return;
             }
-            if (privilege != "" && disable == true)
+            if (privilege.Length == 0)
             {
-                AccessToken.DisablePrivilege(hToken, privilege);
+                AccessToken.SetAllTokenPrivileges(hToken, disable);
                 return;
             }
-            if (privilege == "" && disable == false)
-            {
-                AccessToken.EnableAllDisabledTokenPrivileges(hToken);
-                return;
-            }
-            if (privilege == "" && disable == true)
-            {
-                AccessToken.DisableAllEnabledTokenPrivileges(hToken);
-                return;
-            }
-
         }
     }
 }

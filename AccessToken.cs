@@ -139,8 +139,6 @@ namespace EnableAllTokenPrivs
         public static TOKEN_PRIVILEGES GetTokenPrivileges(IntPtr hToken)
         {
             uint TokenInfoLength = 0;
-
-            // get TokenInformation length in TokenInfoLength
             if (!GetTokenInformation(hToken, TOKEN_INFORMATION_CLASS.TokenPrivileges, IntPtr.Zero, TokenInfoLength, out TokenInfoLength))
                 if (Marshal.GetLastWin32Error() != 122) // ERROR_INSUFFICIENT_BUFFER
                     throw new Exception("GetTokenInformation");
@@ -177,19 +175,47 @@ namespace EnableAllTokenPrivs
             }
         }
 
-        public static bool EnablePrivilege(IntPtr hToken, string privilege)
+        public static bool SetTokenPrivilege(IntPtr hToken, bool disable, string privilege)
         {
             LUID luid = new LUID();
             LookupPrivilegeValue(null, privilege, ref luid);
             TOKEN_PRIVILEGE tp = new TOKEN_PRIVILEGE();
             tp.Count = 1;
             tp.Luid = luid;
-            tp.Attr = SE_PRIVILEGE_ENABLED;
+            tp.Attr = (disable) ? SE_PRIVILEGE_DISABLED : SE_PRIVILEGE_ENABLED;
 
             if (!AdjustTokenPrivileges(hToken, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero))
                 return false;
 
             return true;
+        }
+
+        public static void SetAllTokenPrivileges(IntPtr hToken, bool disable)
+        {
+            TOKEN_PRIVILEGES TokenPrivileges = GetTokenPrivileges(hToken);
+            for (int i = 0; i < TokenPrivileges.PrivilegeCount; i++)
+            {
+                if (TokenPrivileges.Privileges[i].Attributes == (disable ? SE_PRIVILEGE_ENABLED: SE_PRIVILEGE_DISABLED))
+                {
+                    LUID luid = new LUID();
+                    luid = TokenPrivileges.Privileges[i].Luid;
+                    IntPtr ptrLuid = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(LUID)));
+                    Marshal.StructureToPtr(luid, ptrLuid, true);
+
+                    int luidNameLen = 0;
+                    LookupPrivilegeName(null, ptrLuid, null, ref luidNameLen); // call once to get the name len
+
+                    StringBuilder sb = new StringBuilder();
+                    sb.EnsureCapacity(luidNameLen + 1);
+
+                    if (!LookupPrivilegeName(null, ptrLuid, sb, ref luidNameLen)) // call again to get the name
+                        throw new Exception("LookupPrivilegeName");
+
+                    string privilege = sb.ToString();
+
+                    SetTokenPrivilege(hToken, disable, privilege);                 
+                }
+            }
         }
 
         public static void EnableAllPrivileges(IntPtr hToken)
@@ -197,79 +223,8 @@ namespace EnableAllTokenPrivs
             string[] privs = { "SeAssignPrimaryTokenPrivilege", "SeAuditPrivilege", "SeBackupPrivilege", "SeChangeNotifyPrivilege", "SeCreateGlobalPrivilege", "SeCreatePagefilePrivilege", "SeCreatePermanentPrivilege", "SeCreateSymbolicLinkPrivilege", "SeCreateTokenPrivilege", "SeDebugPrivilege", "SeDelegateSessionUserImpersonatePrivilege", "SeEnableDelegationPrivilege", "SeImpersonatePrivilege", "SeIncreaseBasePriorityPrivilege", "SeIncreaseQuotaPrivilege", "SeIncreaseWorkingSetPrivilege", "SeLoadDriverPrivilege", "SeLockMemoryPrivilege", "SeMachineAccountPrivilege", "SeManageVolumePrivilege", "SeProfileSingleProcessPrivilege", "SeRelabelPrivilege", "SeRemoteShutdownPrivilege", "SeRestorePrivilege", "SeSecurityPrivilege", "SeShutdownPrivilege", "SeSyncAgentPrivilege", "SeSystemEnvironmentPrivilege", "SeSystemProfilePrivilege", "SeSystemtimePrivilege", "SeTakeOwnershipPrivilege", "SeTcbPrivilege", "SeTimeZonePrivilege", "SeTrustedCredManAccessPrivilege", "SeUndockPrivilege", "SeUnsolicitedInputPrivilege" };
             foreach (string priv in privs)
             {
-                EnablePrivilege(hToken, priv);
+                SetTokenPrivilege(hToken, false, priv);
             }
-        }
-
-        public static void EnableAllDisabledTokenPrivileges(IntPtr hToken)
-        {
-            TOKEN_PRIVILEGES TokenPrivileges = GetTokenPrivileges(hToken);
-            for (int i = 0; i < TokenPrivileges.PrivilegeCount; i++)
-            {
-                if (TokenPrivileges.Privileges[i].Attributes == SE_PRIVILEGE_DISABLED)
-                {
-                    LUID luid = new LUID();
-                    luid = TokenPrivileges.Privileges[i].Luid;
-                    IntPtr ptrLuid = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(LUID)));
-                    Marshal.StructureToPtr(luid, ptrLuid, true);
-
-                    int luidNameLen = 0;
-                    LookupPrivilegeName(null, ptrLuid, null, ref luidNameLen); // call once to get the name len
-
-                    StringBuilder sb = new StringBuilder();
-                    sb.EnsureCapacity(luidNameLen + 1);
-
-                    if (!LookupPrivilegeName(null, ptrLuid, sb, ref luidNameLen)) // call again to get the name
-                        throw new Exception("LookupPrivilegeName");
-
-                    string privilegeName = sb.ToString();
-
-                    EnablePrivilege(hToken, privilegeName);
-                }
-            }
-        }
-
-        public static void DisableAllEnabledTokenPrivileges(IntPtr hToken)
-        {
-            TOKEN_PRIVILEGES TokenPrivileges = GetTokenPrivileges(hToken);
-            for (int i = 0; i < TokenPrivileges.PrivilegeCount; i++)
-            {
-                if (TokenPrivileges.Privileges[i].Attributes == SE_PRIVILEGE_ENABLED)
-                {
-                    LUID luid = new LUID();
-                    luid = TokenPrivileges.Privileges[i].Luid;
-                    IntPtr ptrLuid = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(LUID)));
-                    Marshal.StructureToPtr(luid, ptrLuid, true);
-
-                    int luidNameLen = 0;
-                    LookupPrivilegeName(null, ptrLuid, null, ref luidNameLen); // call once to get the name len
-
-                    StringBuilder sb = new StringBuilder();
-                    sb.EnsureCapacity(luidNameLen + 1);
-
-                    if (!LookupPrivilegeName(null, ptrLuid, sb, ref luidNameLen)) // call again to get the name
-                        throw new Exception("LookupPrivilegeName");
-
-                    string privilegeName = sb.ToString();
-
-                    DisablePrivilege(hToken, privilegeName);
-                }
-            }
-        }
-
-        public static bool DisablePrivilege(IntPtr hToken, string privilege)
-        {
-            LUID luid = new LUID();
-            LookupPrivilegeValue(null, privilege, ref luid);
-            TOKEN_PRIVILEGE tp = new TOKEN_PRIVILEGE();
-            tp.Count = 1;
-            tp.Luid = luid;
-            tp.Attr = SE_PRIVILEGE_DISABLED;
-
-            if (!AdjustTokenPrivileges(hToken, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero))
-                return false;
-
-            return true;
         }
     }
 }
