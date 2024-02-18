@@ -6,8 +6,13 @@ namespace EnableAllTokenPrivs
 {
     class EnableAllTokenPrivs
     {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        internal static extern IntPtr OpenProcess(uint DesiredAccess, bool bInheritHandle, int dwProcessId);
+
         [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
         internal static extern bool OpenProcessToken(IntPtr ProcessHandle, uint DesiredAccess, ref IntPtr TokenHandle);
+
+        private const UInt32 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 
         private static void printUsage()
         {
@@ -74,19 +79,31 @@ namespace EnableAllTokenPrivs
             if (processId == -1) {
                 hProcess = ProcessChild.GetParentProcess().Handle;
             } else {
-                hProcess = Process.GetProcessById(processId).Handle;
+                try {
+                    hProcess = Process.GetProcessById(processId).Handle;
+                } catch {
+                    hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, processId);
+                    if (hProcess.Equals(-1)) {
+                        throw new Exception("OpenProcess failed. Error: " + Marshal.GetLastWin32Error());
+                    }
+                }
             }
 
             IntPtr hToken = IntPtr.Zero;
-            if (!OpenProcessToken(hProcess, (AccessToken.TOKEN_ADJUST_PRIVILEGES | AccessToken.TOKEN_QUERY), ref hToken))
-                throw new Exception("OpenProcessToken failed. Error: " + Marshal.GetLastWin32Error());
 
             if (listPrivs == true)
             {
+                if (!OpenProcessToken(hProcess, (AccessToken.TOKEN_QUERY), ref hToken))
+                    throw new Exception("OpenProcessToken failed. Error: " + Marshal.GetLastWin32Error());
+
                 AccessToken.TOKEN_PRIVILEGES TokenPrivileges = AccessToken.GetTokenPrivileges(hToken);
                 AccessToken.PrintTokenPrivileges(TokenPrivileges);
                 return;
             }
+
+            if (!OpenProcessToken(hProcess, (AccessToken.TOKEN_ADJUST_PRIVILEGES | AccessToken.TOKEN_QUERY), ref hToken))
+                throw new Exception("OpenProcessToken failed. Error: " + Marshal.GetLastWin32Error());
+
             if (privilege.Length > 0)
             {
                 AccessToken.SetTokenPrivilege(hToken, disable, privilege);
