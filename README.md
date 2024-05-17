@@ -3,7 +3,7 @@
 Enable or Disable TokenPrivilege(s)
 
 This program is actually pretty useless as it is just a wrapper for the [`AdjustTokenPrivileges()`](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-adjusttokenprivileges) WinAPI function and enables or disables privileges on processes.  
-Typically, when a program needs to perform a privileged task, it will simply call `AdjustTokenPrivileges' to enable the privileges it needs, or disable the privileges when it is finished.
+Typically, when a program needs to perform a privileged task, it will simply call `AdjustTokenPrivileges` to enable the privileges it needs, or disable the privileges when it is finished.
 
 ## Usage
 
